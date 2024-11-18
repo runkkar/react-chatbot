@@ -10,15 +10,53 @@ interface Message {
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const sendMessage = () => {
+
+  const apiKey = 'xai-WgVDiQVEGP2EWGix4pohFD4pXVBNjDo4WtZyU5PG3CNrE5X8w8wEKCGwydNih5y5fuZ0s2wPBbM15khH';
+
+  const sendMessage = async () => {
     if (!userInput.trim()) return;
 
     const userMessage: Message = { text: userInput, sender: 'user' };
-    const botMessage: Message = { text: "To je zajímavé! Jak vám mohu ještě pomoci?", sender: 'bot' };
-
-    setMessages([...messages, userMessage, botMessage]);
+    setMessages([...messages, userMessage]);
     setUserInput('');
+    setIsLoading(true);
+
+  
+    try {
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: 'You are a test assistant.' },
+            ...messages.map((msg) => ({
+              role: msg.sender === 'user' ? 'user' : 'assistant',
+              content: msg.text,
+            })),
+            { role: 'user', content: userInput },
+          ],
+          model: 'grok-beta',
+          stream: false,
+          temperature: 0,
+        }),
+      });
+
+      const data = await response.json();
+      const botMessage: Message = {
+        text: data.choices[0].message.content,
+        sender: 'bot',
+      };
+      setMessages((prevMessages) => [...prevMessages, botMessage]);
+    } catch (error) {
+      console.error('Error while fetching from API:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -33,6 +71,11 @@ function App() {
               {message.text}
             </div>
           ))}
+          {isLoading && (
+            <div className="p-3 rounded-lg max-w-[80%] self-start bg-gray-800 text-white">
+              Bot is typing...
+            </div>
+          )}
         </div>
         <div className="flex mt-4">
           <input
